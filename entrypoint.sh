@@ -1,26 +1,25 @@
 #!/bin/bash
 set -e
 
-VENV_DIR="/app/ComfyUI/custom_nodes/venv"
+# 修正 1：将 venv 部署到挂载的 user 目录，彻底避开 custom_nodes 的递归扫描陷阱
+VENV_DIR="/app/user/venv"
 
-# 1. 自动初始化外部持久化卷中的独立虚拟环境（允许继承系统 site-packages 的 PyTorch/CUDA 库）
 if [ ! -d "$VENV_DIR" ]; then
     echo "[Runtime] Initializing persistent virtual environment in volume..."
     python -m venv "$VENV_DIR" --system-site-packages
 fi
 
-# 2. 核心劫持：激活该虚拟环境，后续所有动态 pip 安装全部导流至宿主机
 source "$VENV_DIR/bin/activate"
 
-# 3. 解决挂载卷 Shadowing 冲突，将 Manager 搬运至挂载卷
-if [ ! -d "/app/ComfyUI/custom_nodes/ComfyUI-Manager" ]; then
+# 修正 2：修复相对路径错位，将 Manager 准确投放至 /app/custom_nodes
+if [ ! -d "/app/custom_nodes/ComfyUI-Manager" ]; then
     echo "[Runtime] Deploying ComfyUI-Manager to custom_nodes volume..."
-    cp -r /staging/ComfyUI-Manager /app/ComfyUI/custom_nodes/
+    cp -r /staging/ComfyUI-Manager /app/custom_nodes/
 fi
 
-# 4. 依赖项防丢失扫描机制
+# 修正 3：扫描正确的 custom_nodes 目录以安装依赖
 echo "[Runtime] Checking for custom node dependencies..."
-find /app/ComfyUI/custom_nodes -mindepth 2 -maxdepth 2 -name "requirements.txt" | while read req_file; do
+find /app/custom_nodes -mindepth 2 -maxdepth 2 -name "requirements.txt" | while read req_file; do
     echo "[Runtime] Resolving $req_file ..."
     pip install --no-cache-dir -r "$req_file" || echo "[Warning] Dependency resolution skipped for $req_file"
 done
