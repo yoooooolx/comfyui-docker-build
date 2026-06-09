@@ -1,0 +1,37 @@
+name: Cloud-Native Build Engine
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: # 开启 GitHub 网页端手动触发按钮
+  # 增加定时任务：遵循 POSIX Cron 语法
+  schedule:
+    # 示例：每周日凌晨 2:00 (UTC 时间) 自动触发流水线
+    - cron: '0 2 * * 0'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # 关键：赋予工作流写入 GHCR 镜像仓库的系统级权限
+    steps:
+      - name: Fetch Codebase
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GHCR Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }} # 自动注入临时鉴权令牌
+
+      - name: Build and Push Package to Cloud
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
