@@ -18,9 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # 突破 PEP 668 限制，强制在容器全局环境安装指定版本 (cu130) 的 PyTorch 生态
-# RUN pip install --break-system-packages torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu130
-# 将核心依赖comfyui-frontend写入镜像，防止物理机意外关机导致的假死
-RUN pip install --break-system-packages torch torchvision torchaudio comfyui-frontend --extra-index-url https://download.pytorch.org/whl/cu130
+RUN pip install --break-system-packages torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu130
 
 # 克隆最新 ComfyUI 核心代码并安装自身依赖
 RUN git clone https://github.com/Comfy-Org/ComfyUI.git . && \
