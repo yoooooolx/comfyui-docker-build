@@ -42,4 +42,4 @@ find /app/custom_nodes -mindepth 2 -maxdepth 2 -name "requirements.txt" | while 
 done
 
 echo "[Runtime] Executing ComfyUI Core Services..."
-exec python main.py --listen 0.0.0.0 "$@"
+exec python main.py --listen 127.0.0.1 "$@"
