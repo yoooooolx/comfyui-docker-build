@@ -6,7 +6,6 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
 # 安装系统级依赖与 Python 3.12
-# 注：Ubuntu 24.04 默认搭载 Python 3.12，需同步安装 venv 模块与多媒体处理库
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.12 \
     python3.12-venv \
@@ -20,15 +19,10 @@ WORKDIR /app
 # 突破 PEP 668 限制，强制在容器全局环境安装指定版本 (cu130) 的 PyTorch 生态
 RUN pip install --break-system-packages torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu130
 
-# 克隆最新 ComfyUI 核心代码并安装自身依赖
+# 克隆最新 ComfyUI 核心代码，安装主线依赖，并同步安装 V4 架构的原生 Manager 依赖包
 RUN git clone https://github.com/Comfy-Org/ComfyUI.git . && \
-    pip install --break-system-packages -r requirements.txt
-
-# 克隆 Manager 插件至暂存区
-RUN mkdir -p /staging && cd /staging && \
-    git clone https://github.com/ltdrdata/ComfyUI-Manager.git && \
-    cd ComfyUI-Manager && \
-    pip install --break-system-packages -r requirements.txt
+    pip install --break-system-packages -r requirements.txt && \
+    pip install --break-system-packages -r manager_requirements.txt
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
