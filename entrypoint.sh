@@ -5,6 +5,10 @@ VENV_DIR="/app/user/venv"
 STATE_DIR="/app/user/.dependency-state"
 CACHE_DIR="/app/user/.cache"
 LOCK_FILE="/app/user/.dependency-install.lock"
+RUNTIME_FINGERPRINT_FILE="/app/.runtime-fingerprint"
+SAVED_RUNTIME_FINGERPRINT_FILE="${STATE_DIR}/runtime.sha256"
+DEPENDENCY_MARKER_FILE="${STATE_DIR}/custom-nodes.sha256"
+TORCH_CONSTRAINTS_FILE="/tmp/torch-constraints.txt"
 
 export HOME="/app/user"
 export XDG_CACHE_HOME="$CACHE_DIR"
@@ -41,7 +45,21 @@ reset_dependency_markers() {
 }
 
 prepare_venv() {
+    local runtime_fingerprint
+    local saved_runtime_fingerprint=""
+
     find "$STATE_DIR" -maxdepth 1 -type f -name "*.tmp.*" -delete 2>/dev/null || true
+
+    runtime_fingerprint="$(sha256sum "$RUNTIME_FINGERPRINT_FILE" | cut -d ' ' -f 1)"
+    if [ -f "$SAVED_RUNTIME_FINGERPRINT_FILE" ]; then
+        saved_runtime_fingerprint="$(<"$SAVED_RUNTIME_FINGERPRINT_FILE")"
+    fi
+
+    if [ -d "$VENV_DIR" ] && [ "$saved_runtime_fingerprint" != "$runtime_fingerprint" ]; then
+        echo "[Runtime] Base runtime changed; rebuilding the persistent virtual environment."
+        rm -rf "$VENV_DIR"
+        reset_dependency_markers
+    fi
 
     if [ -d "$VENV_DIR" ]; then
         echo "[Runtime] Checking persistent venv for stale locks..."
@@ -63,34 +81,57 @@ prepare_venv() {
 
     python -m venv "$VENV_DIR" --system-site-packages
     reset_dependency_markers
+
+    printf '%s\n' "$runtime_fingerprint" > "${SAVED_RUNTIME_FINGERPRINT_FILE}.tmp.$$"
+    mv -f "${SAVED_RUNTIME_FINGERPRINT_FILE}.tmp.$$" "$SAVED_RUNTIME_FINGERPRINT_FILE"
 }
 
-install_requirements() {
-    local req_file="$1"
+install_custom_node_requirements() {
     local force_install="${COMFYUI_FORCE_REQUIREMENTS:-0}"
-    local requirements_hash
-    local path_hash
-    local marker_file
+    local dependency_hash
     local marker_tmp
+    local req_file
+    local -a pip_args
+    local -a requirements_files
 
-    requirements_hash="$(sha256sum "$req_file" | cut -d ' ' -f 1)"
-    path_hash="$(printf '%s' "$req_file" | sha256sum | cut -d ' ' -f 1)"
-    marker_file="${STATE_DIR}/${path_hash}.sha256"
-    marker_tmp="${marker_file}.tmp.$$"
+    mapfile -d '' -t requirements_files < <(
+        find /app/custom_nodes -mindepth 2 -maxdepth 2 -type f -name "requirements.txt" -print0 | sort -z
+    )
 
-    if [ "$force_install" != "1" ] && [ -f "$marker_file" ] && [ "$(<"$marker_file")" = "$requirements_hash" ]; then
-        echo "[Runtime] Dependencies unchanged for $req_file; skipping."
+    if [ "${#requirements_files[@]}" -eq 0 ]; then
+        echo "[Runtime] No custom node requirements found; skipping."
         return
     fi
 
-    echo "[Runtime] Installing dependencies from $req_file ..."
-    if python -m pip install -r "$req_file"; then
-        printf '%s\n' "$requirements_hash" > "$marker_tmp"
-        mv -f "$marker_tmp" "$marker_file"
-        echo "[Runtime] Dependency marker updated for $req_file."
+    dependency_hash="$({
+        cat "$RUNTIME_FINGERPRINT_FILE" "$TORCH_CONSTRAINTS_FILE"
+        for req_file in "${requirements_files[@]}"; do
+            printf '\0%s\0' "$req_file"
+            cat "$req_file"
+        done
+    } | sha256sum | cut -d ' ' -f 1)"
+    marker_tmp="${DEPENDENCY_MARKER_FILE}.tmp.$$"
+
+    if [ "$force_install" != "1" ] && [ -f "$DEPENDENCY_MARKER_FILE" ] && [ "$(<"$DEPENDENCY_MARKER_FILE")" = "$dependency_hash" ]; then
+        echo "[Runtime] Custom node dependency environment unchanged; skipping."
+        return
+    fi
+
+    pip_args=(-c "$TORCH_CONSTRAINTS_FILE")
+    for req_file in "${requirements_files[@]}"; do
+        pip_args+=(-r "$req_file")
+    done
+
+    echo "[Runtime] Resolving all custom node dependencies as one environment..."
+    if python -m pip install "${pip_args[@]}" && \
+        python -m pip check && \
+        python -c 'import torch, torchvision, torchaudio'; then
+        printf '%s\n' "$dependency_hash" > "$marker_tmp"
+        mv -f "$marker_tmp" "$DEPENDENCY_MARKER_FILE"
+        echo "[Runtime] Custom node dependency marker updated."
     else
         rm -f "$marker_tmp"
-        echo "[Warning] Dependency install failed for $req_file; marker was not updated; ComfyUI will continue; next startup retries."
+        echo "[Warning] Custom node dependency resolution failed; marker was not updated; ComfyUI will continue; next startup retries."
     fi
 }
 
@@ -102,20 +143,38 @@ run_dependency_setup() {
 
     echo "[Runtime] Checking for custom node dependencies..."
     if [ -d /app/custom_nodes ]; then
-        while IFS= read -r -d '' req_file; do
-            install_requirements "$req_file"
-        done < <(find /app/custom_nodes -mindepth 2 -maxdepth 2 -type f -name "requirements.txt" -print0 | sort -z)
+        install_custom_node_requirements
     else
         echo "[Runtime] No custom_nodes directory found; skipping dependency scan."
     fi
+}
+
+configure_manager_package_installer() {
+    local manager_config_dir="/app/user/__manager"
+
+    mkdir -p "$manager_config_dir"
+    python - "${manager_config_dir}/config.ini" <<'PY'
+import configparser
+import sys
+
+config_path = sys.argv[1]
+config = configparser.ConfigParser(strict=False)
+config.read(config_path)
+if not config.has_section("default"):
+    config.add_section("default")
+config.set("default", "use_uv", "false")
+with open(config_path, "w", encoding="utf-8") as config_file:
+    config.write(config_file)
+PY
 }
 
 exec 9>"$LOCK_FILE"
 echo "[Runtime] Waiting for dependency installation lock..."
 flock 9
 run_dependency_setup
+configure_manager_package_installer
 flock -u 9
 exec 9>&-
 
 echo "[Runtime] Executing ComfyUI Core Services..."
-exec python main.py --enable-manager --listen 0.0.0.0 "$@"
+exec python main.py --enable-manager --listen "${COMFYUI_LISTEN:-127.0.0.1}" "$@"

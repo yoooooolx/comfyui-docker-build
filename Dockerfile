@@ -84,15 +84,21 @@ ENTRYPOINT ["/entrypoint.sh"]
 
 FROM comfyui-source AS runtime
 
+ARG COMFYUI_COMMIT
+
 RUN --mount=type=cache,target=/root/.cache/pip \
     grep -Eiq '^comfyui-workflow-templates([<>=!~]|$)' requirements.txt && \
     grep -Eiq '^comfyui-embedded-docs([<>=!~]|$)' requirements.txt && \
     python -m pip install -c /tmp/torch-constraints.txt -r requirements.txt && \
     python -m pip install -r manager_requirements.txt && \
     python -m pip show comfyui-workflow-templates comfyui-embedded-docs comfyui-frontend-package comfy-kitchen transformers torchaudio && \
-    python -m pip check
+    python -m pip check && \
+    printf 'comfyui=%s\npython=%s\n' "${COMFYUI_COMMIT}" "$(python -c 'import platform; print(platform.python_version())')" > /app/.runtime-fingerprint && \
+    python -m pip show torch torchvision torchaudio | grep -E '^(Name|Version):' >> /app/.runtime-fingerprint
 
 FROM comfyui-source AS lite
+
+ARG COMFYUI_COMMIT
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     awk 'BEGIN { IGNORECASE = 1 } \
@@ -107,7 +113,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install -r manager_requirements.txt && \
     python -m pip show comfyui-frontend-package comfy-kitchen transformers torchaudio && \
     ! python -m pip show comfyui-workflow-templates comfyui-embedded-docs >/tmp/lite-omitted-packages.txt 2>&1 && \
-    python -m pip check
+    python -m pip check && \
+    printf 'comfyui=%s\npython=%s\n' "${COMFYUI_COMMIT}" "$(python -c 'import platform; print(platform.python_version())')" > /app/.runtime-fingerprint && \
+    python -m pip show torch torchvision torchaudio | grep -E '^(Name|Version):' >> /app/.runtime-fingerprint
 
 FROM runtime AS compile
 
