@@ -14,3 +14,7 @@ desktop.ini
 .vscode/
 .vscode-server/
 .idea/
+data/*
+.omo/*
+.codegraph/*
+.playwright-mcp/*

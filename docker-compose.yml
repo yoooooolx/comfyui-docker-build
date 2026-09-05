@@ -1,19 +1,19 @@
 services:
   comfyui:
-    image: ghcr.io/yoooooolx/comfyui-docker-build:latest
+    image: comfyui-docker-build:runtime
+    build:
+      context: .
+      target: runtime
     container_name: comfyui_container
     restart: unless-stopped
+    init: true
 
     ports:
-    #   - "8188:8188"
       - "127.0.0.1:8188:8188"
-    # network_mode: "host"
-    
+
     environment:
       NVIDIA_VISIBLE_DEVICES: all
-    # HTTP_PROXY: ****
-    # HTTPS_PROXY: ****
-    # ALL_PROXY: ****
+
     deploy:
       resources:
         reservations:
@@ -21,6 +21,7 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
     volumes:
       - ./data/models:/app/models
       - ./data/custom_nodes:/app/custom_nodes
