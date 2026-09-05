@@ -4,6 +4,7 @@ services:
     build:
       context: .
       target: runtime
+    pull_policy: build
     container_name: comfyui_container
     restart: unless-stopped
     init: true
@@ -12,7 +13,9 @@ services:
       - "127.0.0.1:8188:8188"
 
     environment:
+      COMFYUI_LISTEN: 0.0.0.0
       NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility,video
 
     deploy:
       resources:
