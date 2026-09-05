@@ -1,5 +1,11 @@
-docker-compose.yml
+data/
+.omo/
+.codegraph/
 .git/
 .github/
-.gitignore
-README.md
+docker-compose*.yml
+
+*
+!Dockerfile
+!entrypoint.sh
+!.dockerignore
