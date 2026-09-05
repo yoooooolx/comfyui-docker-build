@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
     outputs:
       comfyui-commit: ${{ steps.comfyui.outputs.commit }}
     steps:
@@ -41,7 +42,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
     strategy:
       fail-fast: true
       matrix:
