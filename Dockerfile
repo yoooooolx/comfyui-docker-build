@@ -20,7 +20,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_BREAK_SYSTEM_PACKAGES=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    UV_LINK_MODE=copy
+    UV_LINK_MODE=copy \
+    CC=gcc
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -28,6 +29,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     apt-get update && \
     apt-get install -y --no-install-recommends \
+        build-essential \
         ca-certificates \
         ffmpeg \
         git \
@@ -125,7 +127,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     apt-get update && \
     apt-get install -y --no-install-recommends \
-        build-essential \
         cmake \
         ninja-build \
         python${PYTHON_VERSION}-dev
