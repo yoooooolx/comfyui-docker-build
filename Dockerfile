@@ -36,6 +36,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         libglib2.0-0 \
         libgl1 \
         python${PYTHON_VERSION} \
+        python${PYTHON_VERSION}-dev \
         python${PYTHON_VERSION}-venv \
         python3-pip \
         util-linux \
@@ -128,8 +129,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         cmake \
-        ninja-build \
-        python${PYTHON_VERSION}-dev
+        ninja-build
 
 FROM compile AS cuda-devel
 
