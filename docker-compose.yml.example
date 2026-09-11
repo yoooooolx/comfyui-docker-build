@@ -6,27 +6,31 @@ services:
     init: true
 
     ports:
-    #   - "8188:8188"
+      #   - "8188:8188"
+    # Use this for safety.
       - "127.0.0.1:8188:8188"
     # network_mode: "host"
-    
+
     environment:
+      # Listen to 0.0.0.0 or it will reject connections from docker network bridge
       COMFYUI_LISTEN: 0.0.0.0
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility,video
-    # HTTP_PROXY: ****
-    # HTTPS_PROXY: ****
-    # ALL_PROXY: ****
+
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
               count: all
-              capabilities: [gpu]
+              capabilities: [ gpu ]
+
     volumes:
       - ./data/models:/app/models
       - ./data/custom_nodes:/app/custom_nodes
       - ./data/output:/app/output
       - ./data/input:/app/input
       - ./data/user:/app/user
+
+    # Use this if you want an auto-updated ComfyUI_frontend when recreating container
+    command: [ "--listen", "--front-end-version", "Comfy-Org/ComfyUI_frontend@latest" ]

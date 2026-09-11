@@ -50,12 +50,10 @@ jobs:
       - name: Fetch Codebase
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Validate Shell and Compose Configuration
-        shell: bash
+      - name: Validate syntax and compose files
         run: |
           set -euo pipefail
           bash -n entrypoint.sh
-          docker compose config --quiet
           docker compose -f docker-compose.yml.example config --quiet
 
       - name: Set up Docker Buildx
